@@ -33,6 +33,7 @@
               rebar_subdirs,
               rebar_templater,
               rebar_utils,
+              rebar_cli_utils,
               rebar_xref,
               getopt,
               mustache ]},
