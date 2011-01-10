@@ -235,27 +235,27 @@ unabbreviate_command_names([Command | Commands]) ->
         [FullCommand] ->
             [FullCommand | unabbreviate_command_names(Commands)];
         Candidates ->
-            ?ABORT("Found more than one match for abbreviated command name "
-                   " \"~s\",~nplease be more specific. Possible candidates:~n"
+            ?ABORT("Found more than one match for abbreviated command name"
+                   " '~s',~nplease be more specific. Possible candidates:~n"
                    "  ~s~n",
                    [Command, string:join(Candidates, ", ")])
     end.
 
 get_command_name_candidates(Command) ->
-    %% Get the command names which match the give (abbreviated) command name.
+    %% Get the command names which match the given (abbreviated) command name.
     %% * "c"        matches commands like compile, clean and create-app
-    %% * "create"   matches commands only create, since it's unique
-    %% * "create-"  matches commands starting in create-
+    %% * "create"   matches command create only, since it's unique
+    %% * "create-"  matches commands starting with create-
     %% * "c-a"      matches create-app
     %% * "create-a" matches create-app
     %% * "c-app"    matches create-app
     Candidates = [Candidate || Candidate <- command_names(),
-                                 is_command_name_candidate(Command, Candidate)],
-    %% Is there a complete match?  If so return only that, return a
+                               is_command_name_candidate(Command, Candidate)],
+    %% Is there a complete match? If so return only that, return a
     %% list of candidates otherwise
-    case lists:member(Command, Candidates) of
-        true  -> [Command];
-        false -> Candidates
+    case Candidates of
+        [Command] = Match -> Match;
+        _ -> Candidates
     end.
 
 is_command_name_candidate(Command, Candidate) ->
