@@ -46,9 +46,9 @@
             {OldName, OldVer} = rebar_utils:get_rel_release_info(Name, OldVerPath),
             
             %% Run some simple checks
-            true = prop_check(NewVer =/= OldVer, 
+            true = rebar_utils:prop_check(NewVer =/= OldVer, 
                               "New and old .rel versions match~n", []),
-            true = prop_check(NewName == OldName, 
+            true = rebar_utils:prop_check(NewName == OldName, 
                               "Reltool and .rel release names do not match~n", []),
 
             %% Get lists of the old and new app files
@@ -77,9 +77,6 @@
 
 %% internal api
 
-prop_check(true, _, _) -> true;
-prop_check(false, Msg, Args) -> ?ABORT(Msg, Args).
-                                          
 get_upgraded_apps(OldAppFiles, NewAppFiles) ->
     OldAppsVer = [get_app_version(AppFile) || AppFile <- OldAppFiles],
     NewAppsVer = [get_app_version(AppFile) || AppFile <- NewAppFiles],

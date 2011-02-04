@@ -39,7 +39,8 @@
          escript_foldl/3,
          find_executable/1,
          get_reltool_release_info/1,
-         get_rel_release_info/2]).
+         get_rel_release_info/2,
+         prop_check/3]).
 
 -include("rebar.hrl").
 
@@ -174,6 +175,10 @@ get_rel_release_info(Name, Path) ->
         file:consult(filename:join([binary_to_list(BinDir),
                                     Name ++ ".rel"])),
     {Name1, Ver}.
+
+%% Helper function for checking values and aborting when needed
+prop_check(true, _, _) -> true;
+prop_check(false, Msg, Args) -> ?ABORT(Msg, Args).
 
 %% ====================================================================
 %% Internal functions
