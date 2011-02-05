@@ -65,12 +65,13 @@
                               filename:join([NewName, "lib"]), "^.*.appup$"),
 
             %% Convert the list of appup files into app names
-            AppUpApps = appup_apps(NewAppUpFiles),
+            AppUpApps = filepaths_to_filenames(NewAppUpFiles),
 
             %% Create a list of apps that don't have appups already
             GenAppUpApps = genappup_which_apps(UpgradedApps, AppUpApps),
+            
             %% Generate appup files
-            generate_appups(NewName, GenAppUpApps),
+            generate_appups(Name, OldVerPath, GenAppUpApps),
             
             ok
     end.
@@ -96,32 +97,87 @@ get_app_version(File) ->
             ?ABORT("Failed to parse ~s~n", [File])
     end.
 
-appup_apps(NewAppUpFiles) ->
-    lists:map(
-      fun(File) ->
-              Pos1 = string:rchr(File, $/),
-              Pos2 = string:rchr(File, $.),
-              string:sub_string(File, Pos1 + 1, Pos2 - 1)
-      end,
-      NewAppUpFiles).
+filepaths_to_filenames(Files) ->
+    lists:map(fun(File) ->
+                      filepath_to_filename(File)
+              end, Files).
+    
+filepath_to_filename(File) ->
+    Pos1 = string:rchr(File, $/),
+    Pos2 = string:rchr(File, $.),
+    list_to_atom(string:sub_string(File, Pos1 + 1, Pos2 - 1)).
+
+beam_info(File) ->
+    {ok, {Name, [Attributes]}} = beam_lib:chunks(File, [attributes]),
+    {ok, {Name, [Exports]}} = beam_lib:chunks(File, [exports]),
+    {Name, [Attributes, Exports]}.
+
+changed_files([{_, File}| Rest], Acc) ->
+    NewAcc = lists:append([File], Acc),
+    changed_files(Rest, NewAcc);
+changed_files([], Acc) ->
+    Acc.
 
 genappup_which_apps(UpgradedApps, [First|Rest]) ->
-    List = proplists:delete(list_to_atom(First), UpgradedApps),
+    List = proplists:delete(First, UpgradedApps),
     genappup_which_apps(List, Rest);
 genappup_which_apps(Apps, []) ->
     Apps.
 
+generate_appups(Name, OldVerPath, [{App, {OldVer, NewVer}}|Rest]) ->
+    OldEbinDir = filename:join([".", OldVerPath, "lib",
+                             atom_to_list(App) ++ "-" ++ OldVer, "ebin"]),
+    NewEbinDir = filename:join([".", Name, "lib",
+                             atom_to_list(App) ++ "-" ++ NewVer, "ebin"]),
 
-generate_appups(Name, [{App, {OldVer, NewVer}}|Rest]) ->
-    AppUpFile = filename:join(
-                  [".", Name, "lib", 
-                   atom_to_list(App) ++ "-" ++ NewVer, "ebin", 
-                   atom_to_list(App) ++ ".appup"]),
+    {AddedFiles, DeletedFiles, ChangedFiles} = beam_lib:cmp_dirs(NewEbinDir, OldEbinDir),
+
+    Added = filepaths_to_filenames(AddedFiles),
+    AddedInst = generate_instructions({added, Added}, []),
+
+    Deleted = filepaths_to_filenames(DeletedFiles),
+    DeletedInst = generate_instructions({deleted, Deleted}, []),
+
+    ChangedInst = generate_instructions({changed, changed_files(ChangedFiles, [])}, []),
+
+    Inst = lists:append([AddedInst, DeletedInst, ChangedInst]),
+    AppUpFile = filename:join([NewEbinDir, atom_to_list(App) ++ ".appup"]),
+                   
     ok = file:write_file(AppUpFile, 
                          io_lib:fwrite("%% appup generated for ~p by your friend rebar (~p)\n"
-                                       "{~p, [{~p, []}], [{~p, []}]}.\n",
-                                       [App, rebar_utils:now_str(), NewVer, OldVer, OldVer])),
+                                       "{~p, [{~p, ~p}], [{~p, []}]}.\n",
+                                       [App, rebar_utils:now_str(), NewVer, OldVer, Inst, OldVer])),
     ?CONSOLE("Generated appup for ~p~n", [App]),
-    generate_appups(Name, Rest);
-generate_appups(_, []) ->
+    generate_appups(Name, OldVerPath, Rest);
+generate_appups(_, _, []) ->
     ?CONSOLE("Appup generation complete~n", []).
+
+generate_instructions({added, [First|Rest]}, Acc) ->
+    NewAcc = lists:append([{add_module, First}], Acc),
+    generate_instructions({added, Rest}, NewAcc);
+generate_instructions({deleted, [First|Rest]}, Acc) ->
+    NewAcc = lists:append([{delete_module, First}], Acc),
+    generate_instructions({deleted, Rest}, NewAcc);
+generate_instructions({changed, [First |Rest]}, Acc) ->
+    Info = beam_info(First),
+    Inst = generate_instructions_advanced(Info),
+    NewAcc = lists:append([Inst], Acc),
+    generate_instructions({changed, Rest}, NewAcc);
+generate_instructions({_, []}, Acc) ->
+    Acc.
+
+generate_instructions_advanced({Name, [{attributes, [{behaviour, [supervisor]}|_]}|_]}) ->
+    {update, Name, supervisor};
+generate_instructions_advanced({Name, [{attributes, [{behavior, [supervisor]}|_]}|_]}) ->
+    {update, Name, supervisor};
+generate_instructions_advanced({Name, [_, {exports, Exports}|_]}) ->
+    case proplists:is_defined(code_change, Exports) of
+        true ->
+            {update, Name, {advanced, []}};
+        _ ->
+            {load_module, Name}
+    end.
+
+
+
+
