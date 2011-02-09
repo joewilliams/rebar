@@ -65,7 +65,9 @@
                               filename:join([NewName, "lib"]), "^.*.appup$"),
 
             %% Convert the list of appup files into app names
-            AppUpApps = filepaths_to_filenames(NewAppUpFiles),
+            AppUpApps = lists:map(fun(File) ->
+                                          file_to_name(File)
+                                  end, NewAppUpFiles),
 
             %% Create a list of apps that don't have appups already
             GenAppUpApps = genappup_which_apps(UpgradedApps, AppUpApps),
@@ -97,26 +99,10 @@ get_app_version(File) ->
             ?ABORT("Failed to parse ~s~n", [File])
     end.
 
-filepaths_to_filenames(Files) ->
-    lists:map(fun(File) ->
-                      filepath_to_filename(File)
-              end, Files).
-    
-filepath_to_filename(File) ->
+file_to_name(File) ->
     Pos1 = string:rchr(File, $/),
     Pos2 = string:rchr(File, $.),
     list_to_atom(string:sub_string(File, Pos1 + 1, Pos2 - 1)).
-
-beam_info(File) ->
-    {ok, {Name, [Attributes]}} = beam_lib:chunks(File, [attributes]),
-    {ok, {Name, [Exports]}} = beam_lib:chunks(File, [exports]),
-    {Name, [Attributes, Exports]}.
-
-changed_files([{_, File}| Rest], Acc) ->
-    NewAcc = lists:append([File], Acc),
-    changed_files(Rest, NewAcc);
-changed_files([], Acc) ->
-    Acc.
 
 genappup_which_apps(UpgradedApps, [First|Rest]) ->
     List = proplists:delete(First, UpgradedApps),
@@ -132,13 +118,9 @@ generate_appups(Name, OldVerPath, [{App, {OldVer, NewVer}}|Rest]) ->
 
     {AddedFiles, DeletedFiles, ChangedFiles} = beam_lib:cmp_dirs(NewEbinDir, OldEbinDir),
 
-    Added = filepaths_to_filenames(AddedFiles),
-    AddedInst = generate_instructions({added, Added}, []),
-
-    Deleted = filepaths_to_filenames(DeletedFiles),
-    DeletedInst = generate_instructions({deleted, Deleted}, []),
-
-    ChangedInst = generate_instructions({changed, changed_files(ChangedFiles, [])}, []),
+    AddedInst = generate_instructions({added, AddedFiles}, []),
+    DeletedInst = generate_instructions({deleted, DeletedFiles}, []),
+    ChangedInst = generate_instructions({changed, ChangedFiles}, []),
 
     Inst = lists:append([AddedInst, DeletedInst, ChangedInst]),
     AppUpFile = filename:join([NewEbinDir, atom_to_list(App) ++ ".appup"]),
@@ -153,13 +135,15 @@ generate_appups(_, _, []) ->
     ?CONSOLE("Appup generation complete~n", []).
 
 generate_instructions({added, [First|Rest]}, Acc) ->
-    NewAcc = lists:append([{add_module, First}], Acc),
+    Name = file_to_name(First),
+    NewAcc = lists:append([{add_module, Name}], Acc),
     generate_instructions({added, Rest}, NewAcc);
 generate_instructions({deleted, [First|Rest]}, Acc) ->
-    NewAcc = lists:append([{delete_module, First}], Acc),
+    Name = file_to_name(First),
+    NewAcc = lists:append([{delete_module, Name}], Acc),
     generate_instructions({deleted, Rest}, NewAcc);
-generate_instructions({changed, [First |Rest]}, Acc) ->
-    Info = beam_info(First),
+generate_instructions({changed, [{File, _} |Rest]}, Acc) ->
+    {ok, Info} = beam_lib:chunks(File, [attributes, exports]),
     Inst = generate_instructions_advanced(Info),
     NewAcc = lists:append([Inst], Acc),
     generate_instructions({changed, Rest}, NewAcc);
