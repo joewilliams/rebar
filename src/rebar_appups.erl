@@ -141,35 +141,29 @@ generate_instructions({changed, [{File, _} |Rest]}, Acc) ->
     {ok, {Name, List}} = beam_lib:chunks(File, [attributes, exports]),
     Behavior = get_behavior(List),
     CodeChange = is_code_change(List),
-    Inst = generate_instructions_advanced({Name, Behavior, CodeChange}),
+    Inst = generate_instructions_advanced(Name, Behavior, CodeChange),
     generate_instructions({changed, Rest}, [Inst|Acc]);
 generate_instructions({_, []}, Acc) ->
     Acc.
 
-generate_instructions_advanced({Name, {behavior, supervisor}, _}) ->
+generate_instructions_advanced(Name, supervisor, _) ->
     {update, Name, supervisor};
-generate_instructions_advanced({Name, _, {code_change, true}}) ->
+generate_instructions_advanced(Name, _, true) ->
     {update, Name, {advanced, []}};
-generate_instructions_advanced({Name, _, {code_change, false}}) ->
+generate_instructions_advanced(Name, _, false) ->
     {update, Name}.
 
 get_behavior(List) ->
     Attributes = proplists:get_value(attributes, List),
-    [Behavior] = case proplists:is_defined(behavior, Attributes) of
-        true ->
-            proplists:get_value(behavior, Attributes);
-        false ->
-            case proplists:is_defined(behaviour, Attributes) of
-                true ->
-                    proplists:get_value(behaviour, Attributes);
-                false ->
-                    false
-            end
+    [Behavior] = case proplists:get_value(behavior, Attributes) of
+        undefined ->
+            proplists:get_value(behaviour, Attributes);
+        Else ->
+            Else
     end,
-    {behavior, Behavior}.
+    Behavior.
 
 is_code_change(List) ->
     Exports = proplists:get_value(exports, List),
-    CodeChange = proplists:is_defined(code_change, Exports),
-    {code_change, CodeChange}.
+    proplists:is_defined(code_change, Exports).
 
