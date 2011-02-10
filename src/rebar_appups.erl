@@ -35,7 +35,7 @@
 
 'generate-appups'(_Config, ReltoolFile) ->
     %% Get the old release path
-    OldVerPath = rebar_util:get_previous_release_path(),
+    OldVerPath = rebar_utils:get_previous_release_path(),
 
     %% Get the new and old release name and versions
     {Name, _Ver} = rebar_utils:get_reltool_release_info(ReltoolFile),
@@ -138,20 +138,38 @@ generate_instructions({deleted, [First|Rest]}, Acc) ->
     Name = file_to_name(First),
     generate_instructions({deleted, Rest}, [{delete_module, Name}|Acc]);
 generate_instructions({changed, [{File, _} |Rest]}, Acc) ->
-    {ok, Info} = beam_lib:chunks(File, [attributes, exports]),
-    Inst = generate_instructions_advanced(Info),
+    {ok, {Name, List}} = beam_lib:chunks(File, [attributes, exports]),
+    Behavior = get_behavior(List),
+    CodeChange = is_code_change(List),
+    Inst = generate_instructions_advanced({Name, Behavior, CodeChange}),
     generate_instructions({changed, Rest}, [Inst|Acc]);
 generate_instructions({_, []}, Acc) ->
     Acc.
 
-generate_instructions_advanced({Name, [{attributes, [{behaviour, [supervisor]}|_]}|_]}) ->
+generate_instructions_advanced({Name, {behavior, supervisor}, _}) ->
     {update, Name, supervisor};
-generate_instructions_advanced({Name, [{attributes, [{behavior, [supervisor]}|_]}|_]}) ->
-    {update, Name, supervisor};
-generate_instructions_advanced({Name, [_, {exports, Exports}|_]}) ->
-    case proplists:is_defined(code_change, Exports) of
+generate_instructions_advanced({Name, _, {code_change, true}}) ->
+    {update, Name, {advanced, []}};
+generate_instructions_advanced({Name, _, {code_change, false}}) ->
+    {update, Name}.
+
+get_behavior(List) ->
+    Attributes = proplists:get_value(attributes, List),
+    [Behavior] = case proplists:is_defined(behavior, Attributes) of
         true ->
-            {update, Name, {advanced, []}};
-        _ ->
-            {load_module, Name}
-    end.
+            proplists:get_value(behavior, Attributes);
+        false ->
+            case proplists:is_defined(behaviour, Attributes) of
+                true ->
+                    proplists:get_value(behaviour, Attributes);
+                false ->
+                    false
+            end
+    end,
+    {behavior, Behavior}.
+
+is_code_change(List) ->
+    Exports = proplists:get_value(exports, List),
+    CodeChange = proplists:is_defined(code_change, Exports),
+    {code_change, CodeChange}.
+
