@@ -67,11 +67,11 @@
                                   file_to_name(File)
                           end, NewAppUpFiles),
 
-    %% Create a list of apps that don't have appups already
-    GenAppUpApps = genappup_which_apps(UpgradedApps, AppUpApps),
+    %% Create a list of apps that don't already have appups
+    Apps = genappup_which_apps(UpgradedApps, AppUpApps),
             
     %% Generate appup files
-    generate_appups(Name, OldVerPath, GenAppUpApps),
+    generate_appup_files(Name, OldVerPath, Apps),
             
     ok.
 
@@ -107,7 +107,7 @@ genappup_which_apps(UpgradedApps, [First|Rest]) ->
 genappup_which_apps(Apps, []) ->
     Apps.
 
-generate_appups(Name, OldVerPath, [{App, {OldVer, NewVer}}|Rest]) ->
+generate_appup_files(Name, OldVerPath, [{App, {OldVer, NewVer}}|Rest]) ->
     OldEbinDir = filename:join([".", OldVerPath, "lib",
                              atom_to_list(App) ++ "-" ++ OldVer, "ebin"]),
     NewEbinDir = filename:join([".", Name, "lib",
@@ -127,8 +127,8 @@ generate_appups(Name, OldVerPath, [{App, {OldVer, NewVer}}|Rest]) ->
                                        "{~p, [{~p, ~p}], [{~p, []}]}.\n",
                                        [App, rebar_utils:now_str(), NewVer, OldVer, Inst, OldVer])),
     ?CONSOLE("Generated appup for ~p~n", [App]),
-    generate_appups(Name, OldVerPath, Rest);
-generate_appups(_, _, []) ->
+    generate_appup_files(Name, OldVerPath, Rest);
+generate_appup_files(_, _, []) ->
     ?CONSOLE("Appup generation complete~n", []).
 
 generate_instructions({added, [First|Rest]}, Acc) ->
@@ -146,16 +146,22 @@ generate_instructions({changed, [{File, _} |Rest]}, Acc) ->
 generate_instructions({_, []}, Acc) ->
     Acc.
 
-generate_instructions_advanced(Name, supervisor, _) ->
+generate_instructions_advanced(Name, undefined, false) ->
+    %% Not a behavior or code change, assume purely functional
+    {load_module, Name};
+generate_instructions_advanced(Name, [supervisor], _) ->
+    %% Supervisor
     {update, Name, supervisor};
 generate_instructions_advanced(Name, _, true) ->
+    %% Includes code_change export
     {update, Name, {advanced, []}};
 generate_instructions_advanced(Name, _, false) ->
+    %% Anything else
     {update, Name}.
 
 get_behavior(List) ->
     Attributes = proplists:get_value(attributes, List),
-    [Behavior] = case proplists:get_value(behavior, Attributes) of
+    Behavior = case proplists:get_value(behavior, Attributes) of
         undefined ->
             proplists:get_value(behaviour, Attributes);
         Else ->
