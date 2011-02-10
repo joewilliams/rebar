@@ -40,6 +40,7 @@
          find_executable/1,
          get_reltool_release_info/1,
          get_rel_release_info/2,
+         get_previous_release_path/0,
          prop_check/3]).
 
 -include("rebar.hrl").
@@ -175,6 +176,16 @@ get_rel_release_info(Name, Path) ->
         file:consult(filename:join([binary_to_list(BinDir),
                                     Name ++ ".rel"])),
     {Name1, Ver}.
+
+%% Get the previous release path from a global variable
+get_previous_release_path() ->
+    case rebar_config:get_global(previous_release, false) of
+        false ->
+            ?ABORT("previous_release=PATH is required to "
+                   "create upgrade package~n", []);
+        OldVerPath ->
+            OldVerPath
+    end.
 
 %% Helper function for checking values and aborting when needed
 prop_check(true, _, _) -> true;
