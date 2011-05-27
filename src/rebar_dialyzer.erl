@@ -158,7 +158,8 @@ print_warnings(Warnings) ->
     ?FAIL.
 
 %% @doc If the plt option is present in rebar.config return its value,
-%% otherwise return $HOME/.dialyzer_plt or $REBAR_PLT_DIR/.dialyzer_plt.
+%% otherwise return $HOME/.OTPVsn_AppName_AppVsn_dialyzer_plt
+%% or $REBAR_PLT_DIR/.OTPVsn_AppName_AppVsn_dialyzer_plt.
 -spec new_plt_path(Config::rebar_config:config(),
                    File::file:filename()) -> file:filename().
 new_plt_path(Config, File) ->
@@ -186,9 +187,10 @@ new_plt_path(Config, File) ->
     end.
 
 %% @doc If the plt option is present in rebar.config and the file exists
-%% return its value or if $HOME/.AppName_dialyzer_plt exists return that.
-%% Otherwise return $HOME/.dialyzer_plt if it exists or abort.
-%% If $REBAR_PLT_DIR is defined, it is used instead of $HOME.
+%% return its value or if $HOME/.OTPVsn_AppName_AppVsn_dialyzer_plt
+%% exists return that. Otherwise return $HOME/.OTPVsn_dialyzer_plt if it
+%% exists or abort. If $REBAR_PLT_DIR is defined, it is used instead of
+%% $HOME.
 -spec existing_plt_path(Config::rebar_config:config(),
                         File::file:filename()) -> file:filename().
 existing_plt_path(Config, File) ->
