@@ -163,16 +163,22 @@ print_warnings(Warnings) ->
                    File::file:filename()) -> file:filename().
 new_plt_path(Config, File) ->
     AppName = rebar_app_utils:app_name(File),
+    AppVsn = rebar_app_utils:app_vsn(File),
+    OTPVsn = rebar_utils:erlang_otp_version(),
     DialyzerOpts = rebar_config:get(Config, dialyzer_opts, []),
     case proplists:get_value(plt, DialyzerOpts) of
         undefined ->
             case os:getenv("REBAR_PLT_DIR") of
                 false ->
                     filename:join(os:getenv("HOME"),
-                                  "." ++ atom_to_list(AppName)
+                                  "." ++ OTPVsn ++ "_"
+                                  ++ atom_to_list(AppName)
+                                  ++ "_" ++ AppVsn
                                   ++ "_dialyzer_plt");
                 PltDir ->
-                    filename:join(PltDir, "." ++ atom_to_list(AppName)
+                    filename:join(PltDir, "." ++ OTPVsn ++ "_"
+                                  ++ atom_to_list(AppName)
+                                  ++ "_" ++ AppVsn
                                   ++ "_dialyzer_plt")
             end;
         Plt ->
@@ -187,6 +193,8 @@ new_plt_path(Config, File) ->
                         File::file:filename()) -> file:filename().
 existing_plt_path(Config, File) ->
     AppName = rebar_app_utils:app_name(File),
+    AppVsn = rebar_app_utils:app_vsn(File),
+    OTPVsn = rebar_utils:erlang_otp_version(),
     DialyzerOpts = rebar_config:get(Config, dialyzer_opts, []),
     Home = os:getenv("HOME"),
     Base = case os:getenv("REBAR_PLT_DIR") of
@@ -197,13 +205,16 @@ existing_plt_path(Config, File) ->
            end,
     case proplists:get_value(plt, DialyzerOpts) of
         undefined ->
-            AppPlt = filename:join(Base, "." ++ atom_to_list(AppName)
+            AppPlt = filename:join(Base, "." ++ OTPVsn ++ "_"
+                                   ++ atom_to_list(AppName)
+                                   ++ "_" ++ AppVsn
                                    ++ "_dialyzer_plt"),
             case filelib:is_regular(AppPlt) of
                 true ->
                     AppPlt;
                 false ->
-                    BasePlt = filename:join(Base, ".dialyzer_plt"),
+                    BasePlt = filename:join(Base, "." ++ OTPVsn
+                                            ++ "_dialyzer_plt"),
                     case filelib:is_regular(BasePlt) of
                         true ->
                             BasePlt;

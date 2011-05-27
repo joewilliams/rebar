@@ -40,6 +40,7 @@
          find_executable/1,
          prop_check/3,
          expand_code_path/0,
+         erlang_otp_version/0,
          deprecated/3, deprecated/4]).
 
 -include("rebar.hrl").
@@ -165,6 +166,10 @@ expand_code_path() ->
                            end, [], code:get_path()),
     code:set_path(lists:reverse(CodePath)).
 
+erlang_otp_version() ->
+    Version = erlang:system_info(system_version),
+    Split = re:split(Version, " "),
+    binary_to_list(lists:nth(2, Split)).
 
 %% ====================================================================
 %% Internal functions
