@@ -203,10 +203,6 @@ show_info_maybe_halt(O, Opts, F) ->
 %%
 commands() ->
     S = <<"
-dialyze                              Analyze with Dialyzer
-build-plt                            Build Dialyzer PLT
-check-plt                            Check Dialyzer PLT
-
 clean                                Clean
 compile                              Compile sources
 
