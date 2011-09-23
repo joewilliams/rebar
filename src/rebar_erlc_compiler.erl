@@ -129,14 +129,27 @@ doterl_compile(Config, OutDir) ->
 
 doterl_compile(Config, OutDir, MoreSources) ->
     FirstErls = rebar_config:get_list(Config, erl_first_files, []),
+
+    EnvErlOpts = get_env_erl_opts(),
+    ?DEBUG("erl_opts (env) ~p~n",[EnvErlOpts]),
+
     RawErlOpts = filter_defines(rebar_config:get(Config, erl_opts, []), []),
-    ErlOpts = case proplists:is_defined(no_debug_info, RawErlOpts) of
+    ?DEBUG("erl_opts (rebar.config) ~p~n",[RawErlOpts]),
+
+    AllErlOpts = lists:umerge(RawErlOpts, EnvErlOpts),
+
+    ErlOpts = case proplists:is_defined(no_debug_info, AllErlOpts) of
                   true ->
-                      [O || O <- RawErlOpts, O =/= no_debug_info];
+                      [O || O <- AllErlOpts, O =/= no_debug_info];
                   _ ->
-                      [debug_info|RawErlOpts]
+                      case proplists:is_defined(debug_info, AllErlOpts) of
+                          true ->
+                              AllErlOpts;
+                          _ ->
+                              [debug_info|AllErlOpts]
+                      end
               end,
-    ?DEBUG("erl_opts ~p~n",[ErlOpts]),
+    ?DEBUG("erl_opts (final) ~p~n",[ErlOpts]),
     %% Support the src_dirs option allowing multiple directories to
     %% contain erlang source. This might be used, for example, should
     %% eunit tests be separated from the core application source.
@@ -380,7 +393,7 @@ compile_priority(File) ->
 %%
 -spec filter_defines(ErlOpts::list(), Acc::list()) -> list().
 filter_defines([], Acc) ->
-    lists:reverse(Acc);
+    lists:sort(Acc);
 filter_defines([{platform_define, ArchRegex, Key} | Rest], Acc) ->
     case rebar_utils:is_arch(ArchRegex) of
         true ->
@@ -398,6 +411,22 @@ filter_defines([{platform_define, ArchRegex, Key, Value} | Rest], Acc) ->
 filter_defines([Opt | Rest], Acc) ->
     filter_defines(Rest, [Opt | Acc]).
 
+%%
+%% Parse ERL_OPTS and return a list
+%%
+get_env_erl_opts() ->
+    ErlOpts = os:getenv("ERL_OPTS"),
+    SplitOpts = re:split(ErlOpts, " "),
+    CleanOpts = [ clean_env_opt(X) || X <- SplitOpts],
+    lists:sort(proplists:delete(bad_match, CleanOpts)).
+
+clean_env_opt(Opt) ->
+    case re:replace(binary_to_list(Opt), "\\+", "") of
+        [[]| CleanOpt] ->
+            list_to_atom(binary_to_list(CleanOpt));
+        _ ->
+            bad_match
+    end.
 %%
 %% Ensure all files in a list are present and abort if one is missing
 %%
